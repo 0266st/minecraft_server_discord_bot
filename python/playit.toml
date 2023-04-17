@@ -1,0 +1,30 @@
+last_update = 1681703365821
+api_url = "https://api.playit.cloud/agent"
+ping_target_addresses = ["23.133.216.1:5530", "ping.ply.gg"]
+control_address = "control.playit.gg"
+refresh_from_api = true
+api_refresh_rate = 5000
+ping_interval = 5000
+secret_key = "8cb127d55bed7b13332288bd5044493e506617925b394c04efa8521ef72de39a"
+
+[[mappings]]
+name = "RCON_SERVER"
+proto = "both"
+tunnel_ip = "147.185.221.223"
+tunnel_from_port = 56334
+local_ip = "192.168.1.18"
+local_port = 25577
+
+[[mappings]]
+proto = "udp"
+tunnel_ip = "147.185.221.224"
+tunnel_from_port = 12870
+local_ip = "192.168.1.18"
+local_port = 19132
+
+[[mappings]]
+proto = "udp"
+tunnel_ip = "147.185.221.224"
+tunnel_from_port = 12271
+local_ip = "192.168.1.18"
+local_port = 49152
