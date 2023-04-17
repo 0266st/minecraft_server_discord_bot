@@ -6,8 +6,14 @@ import time
 import os
 import json
 import time
+import mcrcon
 from dotenv import load_dotenv
 load_dotenv()
+rcserver = {
+    'address' : os.environ['SERVER_ADDR'],
+    'port' : os.environ['SERVER_PORT'],
+    'server_pass': os.environ['SERVER_PASS']
+}
 Intents = discord.Intents.all()
 Intents.members = True
 client = discord.Client(intents=Intents)
@@ -27,12 +33,21 @@ def load_settings(filepath):
         settings = {}
     return settings
 
+def rcon_cmd(command):
+    global rcserver
+    with mcrcon.MCRcon(rcserver['address'], rcserver['server_pass'], int(rcserver['port'])) as mcr:
+        log=mcr.command(command)
+        return log
 
-def write_json(data, filename):
-    with open(filename, 'w') as f:
-        json.dump(data, f)
+def write_json(filename):
+    global vcon
+    global ajon
+    global def_vcid
+    f = open(filename, "w")
+    f.write(str('{"vcon":'+'"'+vcon+'"'+',"ajon":'+'"'+ajon+'"'+',"def_vcid":'+'"'+str(def_vcid)+'"'+'}'))
+    f.close()
     print('change setting(s) : ')
-    print(data) 
+    print(str('{"vcon":'+"'"+vcon+"'"+',"ajon":'+'"'+ajon+"'"+',"def_vcid":'+"'"+str(def_vcid)+"'"+'}'))
 
 
 async def init():
@@ -40,12 +55,16 @@ async def init():
     global ajon
     global def_vcid
     global config
-    config = load_settings('C:\\minecraft_server\\script\\python\\settings.json') 
+    global vcclient
+    config = load_settings('C:/minecraft_servers/script/settings.json') 
     vcon = config.get('vcon')
     ajon = config.get('ajon')
     def_vcid = int(config.get('def_vcid'))
-    global vcclient
-    vcclient = await client.get_channel(def_vcid).connect()
+    if vcclient == None:
+        if ajon == 'true':
+            vcclient = await client.get_channel(def_vcid).connect()
+    else:
+        await vcclient.disconnect()
 
 
 @client.event
@@ -53,8 +72,11 @@ async def on_ready():
     global vcclient
     await init()
     if ajon == 'true':
-        time.sleep(1)
-        vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\yomiageon.mp3"))
+        if vcclient.is_playing():
+            vcclient.stop()
+        vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/yomiageon.mp3"))
+    channel = client.get_channel(1092386830147670056)
+    await channel.send(" :warning: WARNING : This is a test version(v1.2.0).")
     print(str('config : '))
     print(config)
     print('vcclient : ')
@@ -67,20 +89,27 @@ async def on_ready():
     run_opt=[
         discord.app_commands.Choice(name="Open",value="open"),
         discord.app_commands.Choice(name="Reboot",value="reboot"),
-        discord.app_commands.Choice(name="Shutdown", value="shutdown")
+        discord.app_commands.Choice(name="Shutdown", value="shutdown"),
+        discord.app_commands.Choice(name="Message", value="message"),
+        discord.app_commands.Choice(name="command", value="cmd")
     ]
 )
-async def server(interaction, run_opt:str):
+async def server(interaction, run_opt:str, run_arg:str=None):#サーバー管理
     global vcclient
     await interaction.response.defer()
     await interaction.followup.send("Executing Commands...")
-    if run_opt == "open":
-        if not win32gui.FindWindow(None, "Minecraft_java_server") == 0:
+    if run_opt == "open": #openメゾット(サーバー開始)
+        if not win32gui.FindWindow(None, "Minecraft_server") == 0:
             await interaction.followup.send("ERROR : Server is already running. please try to `[/server shutdown]`")
             if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\serverisopen.mp3"))
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/serverisopen.mp3"))
+                return
         else:
-            subprocess.run('start C:\\minecraft_server\\script\\start.bat', shell=True)
+            #サーバー解放
+            subprocess.run('start C:/minecraft_servers/playit/playit.exe', shell=True)
+            subprocess.run(str('start C:/minecraft_servers/script/start.bat'), shell=True)
             channel = client.get_channel(1092386830147670056)
             await channel.send("@everyone <@1059732895473868820> 's Minecraft server starting...")
             print('vcclient : ')
@@ -88,35 +117,71 @@ async def server(interaction, run_opt:str):
             print('vcon : ')
             print(vcon)
             if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\open.mp3"))
-    elif run_opt == "reboot":
-        if win32gui.FindWindow(None, "Minecraft_Java_server") == 0:
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/open.mp3"))
+    elif run_opt == "reboot": # rebootメゾット(再起動)
+        if win32gui.FindWindow(None, "Minecraft_server") == 0:
             await interaction.followup.send("ERROR : Server is not running. please try to `[/server open]`")
             if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\serverisopen.mp3"))
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/serverisopen.mp3"))
+                return
         else:
-            subprocess.run('start C:\\minecraft_server\\script\\UWSC\\UWSC.exe C:\\minecraft_server\\script\\UWSC\\reboot.uws', shell=True)
+            #TODO 再起動を実装
+            rcon_cmd('stop')
             channel = client.get_channel(1092386830147670056)
             await channel.send("@everyone <@1059732895473868820> 's minecraft server is shutting down. It will restart in a few seconds... Hold on a second!")
+            if vcon == 'true' and not vcclient == None:
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/reboot.mp3"))
+            time.sleep(10)
+            subprocess.run(str('start C:/minecraft_servers/script/start.bat'), shell=True)
             print('vcclient : ')
             print(vcclient)
-            if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\reboot.mp3"))
-    elif run_opt == "shutdown":
-        if win32gui.FindWindow(None, "Minecraft_Java_server") == 0:
+    elif run_opt == "shutdown":#shutdownメゾット(シャットダウン)
+        if win32gui.FindWindow(None, "Minecraft_server") == 0:
             await interaction.followup.send("ERROR : Server is not running. please try to `[/server open]`")
             if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\serverdoesntopen.mp3"))
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/serverdoesntopen.mp3"))
+                return
         else:
             channel = client.get_channel(1092386830147670056)
             await channel.send("@everyone <@1059732895473868820> 's minecraft server shutting down...")
-            subprocess.run('start C:\\minecraft_server\\script\\shutdown.bat', shell=True)
-            subprocess.run('taskkill /f /im playit.exe', shell=True)
+            #TODO シャットダウンを実装
+            rcon_cmd('stop')
             if vcon == 'true' and not vcclient == None:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\shutdown.mp3"))
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/shutdown.mp3"))
+            time.sleep(10)
+            subprocess.run('taskkill /im playit.exe /f', shell=True)
+    elif run_opt == "message":#messageメゾット(メッセージを送る)
+        if win32gui.FindWindow(None, "Minecraft_server") == 0:
+            await interaction.followup.send("ERROR : Server is not running. please try to `[/server open]`")
+            return
+        else:
+            rcon_cmd(str('say [from] @' + interaction.user.name + ' ' + run_arg))
+    elif run_opt == 'cmd':
+        if win32gui.FindWindow(None, "Minecraft_server") == 0:
+            await interaction.followup.send("ERROR : Server is not running. please try to `[/server open]`")
+            if vcon == 'true' and not vcclient == None:
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/serverdoesntopen.mp3"))
+                return
+        elif interaction.permissions.administrator:
+            rcon_cmd(run_arg)
+            await interaction.followup.send(str('@' + interaction.user.name + ' run command : ' + run_arg))
+        else:
+            await interaction.followup.send('ERROR : You dont have permissions "Admin". please check you have this permissions.', ephemeral=True)
     else:
         await interaction.followup.send(str("ERROR : command doesn't work: incorrect argments : " + run_opt))
-    time.sleep(30)
+        return
+    await interaction.followup.send(":white_check_mark: Operation completed successfully.")
+    return
 
 @cmdtree.command(name="vc-cfg", description="VCチャンネルでのサーバー起動通知に関する設定をします。")
 @discord.app_commands.choices(
@@ -127,20 +192,33 @@ async def server(interaction, run_opt:str):
         discord.app_commands.Choice(name="Quit",value="quit"),
         discord.app_commands.Choice(name="VC-On", value="vcon"),
         discord.app_commands.Choice(name="VC-Off", value="vcoff"),
-        discord.app_commands.Choice(name="Reload", value="reload")     
+        discord.app_commands.Choice(name="Reload", value="reload")
     ]
 )
-async def vc_cfg(interaction, run_cmd:str, def_vcid:str = None):
+async def vc_cfg(interaction, run_cmd:str, set_vcid:str = None):
     global vcclient
     global vcon
     global ajon
+    global def_vcid
     await interaction.response.defer()
     await interaction.followup.send('executing command(s)...')
     cnl = def_vcid
+    print('cnl : ')
+    print(cnl)
     channel = client.get_channel(cnl)
+    print('channel : ')
+    print(channel)
+    if not set_vcid == None:
+        def_vcid = set_vcid
+        write_json('C:/minecraft_servers/script')
     if run_cmd == 'reload':
         await init()
-        return
+        print(vcclient)
+        print(vcon)
+        if vcon == 'true' and vcclient:
+            if vcclient.is_playing():
+                    vcclient.stop()
+            vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/reload.mp3"))
     elif run_cmd == 'join':
         if not channel.type == discord.ChannelType.voice:
             await interaction.response.send_message('Error : Specified channel is invalid or not a voice channel')
@@ -156,34 +234,51 @@ async def vc_cfg(interaction, run_cmd:str, def_vcid:str = None):
             await vcclient.disconnect()
     
     elif run_cmd == 'vcon':
-        write_json({'vcon':'true'}, 'C:\\minecraft_server\\script\\settings.json')
+        write_json('C:/minecraft_servers/script/settings.json')
         vcon = 'true'
         if vcon == 'true' and vcclient:
-                await vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\vcon.mp3"))
+                if vcclient.is_playing():
+                    vcclient.stop()
+                vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/vcon.mp3"))
     
     elif run_cmd == 'vcoff':
-        write_json({'vcon':'false'}, 'C:\\minecraft_server\\script\\settings.json')
+        vcon = 'false'
+        ajon = 'false'
+        write_json('C:/minecraft_servers/script/settings.json')
         if vcon == 'true' and vcclient:
-            vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\vcoff.mp3"))
-            vcclient.disconnect()
+            if vcclient.is_playing():
+                    vcclient.stop()
+            vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/vcoff.mp3"))
+            await vcclient.disconnect()
     
     elif run_cmd == 'ajon':
+        ajon = 'true'
         if def_vcid == None:
             interaction.followup.send('Error: def_vcid value is invalid. Please check if it is the correct value')
-            if vcon == 'true' and vcclient:
-                vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\ajon.mp3"))
-        write_json({'ajon':'true'}, 'C:\\minecraft_server\\script\\settings.json')
+        write_json('C:/minecraft_servers/script/settings.json')
+        if vcon == 'true' and vcclient:
+            if vcclient.is_playing():
+                    vcclient.stop()
+            vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/ajon.mp3"))
 
     elif run_cmd == 'ajoff':
-        write_json({'ajon':'false'}, 'C:\\minecraft_server\\script\\settings.json')
+        ajon = 'false'
+        write_json('C:/minecraft_servers/script/settings.json')
         if vcon == 'true' and vcclient:
-            vcclient.play(discord.FFmpegPCMAudio("C:\\minecraft_server\\script\\python\\sounds\\ajoff.mp3"))
+            if vcclient.is_playing():
+                    vcclient.stop()
+            vcclient.play(discord.FFmpegPCMAudio("C:/minecraft_servers/script/python/sounds/ajoff.mp3"))
     else:
         await interaction.response.send_message(str('invaild run_cmd : ' + run_cmd))
         return 
-    time.sleep(30)
+    await interaction.followup.send(":white_check_mark: Operation completed successfully.")
+    return
+@cmdtree.command(name="shutdown", description="BOTをシャットダウンします。(管理者権限を持っているユーザに限り)")
+async def shutdown(interaction):
+    if interaction.permissions.administrator:
+        await interaction.response.send_message('Shut down the server bot', ephemeral=True)
+        await client.close()
+    else:
+        await interaction.response.send_message('You dont have "Admin" permission. Make sure you have "Admin" permission', ephemeral=True)
 
-
-
-    
 client.run(os.environ['TOKEN'])
